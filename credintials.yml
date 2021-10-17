@@ -1,8 +1,8 @@
 db:
-  host: "localhost"
-  user: "root"
-  passwd: "root"
-  database: "PayslipDB"
+  host: "remotemysql.com"
+  user: "8cXi2WevvB"
+  passwd: "3TMNZ0iDs4"
+  database: "8cXi2WevvB"
   auth_plugin: "mysql_native_password"
 
 system_pass:
