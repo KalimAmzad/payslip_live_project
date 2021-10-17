@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 
 
 with open('credintials.yml', 'r') as f:
-    credintials = yaml.load(f)
+    credintials = yaml.safe_load(f)
     db_credintials = credintials['db']
     system_pass = credintials['system_pass']['admin']
     email_sender = credintials['email_sender']
