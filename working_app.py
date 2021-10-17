@@ -39,11 +39,10 @@ with open('credintials.yml', 'r') as f:
 
 cursor, db = get_database_connection()
 
-all_members = get_all_members(db, cursor)
 
-cursor.execute("SHOW DATABASES")
+# cursor.execute("SHOW DATABASES")
 
-databases = cursor.fetchall() ## it returns a list of all databases present
+# databases = cursor.fetchall() ## it returns a list of all databases present
 
 TEAMS = ['Management', 'HR', 'Expansion', 'Web Development', 'Technology', 'Accounts', 'Listing Sites', 'Marketing',
          'Email Marketing', 'PPC', 'Video Marketing', 'R&D', 'Reed', 'CS', 'Design', 'Web Publishing',
@@ -84,8 +83,8 @@ TEAMS = ['Management', 'HR', 'Expansion', 'Web Development', 'Technology', 'Acco
 #                                               csr_sale_bonus int,
 #                                               FOREIGN KEY(member_id) REFERENCES members(id))''')
 
-cursor.execute("show tables from PayslipDB")
-tables = cursor.fetchall()
+# cursor.execute("show tables from PayslipDB")
+# tables = cursor.fetchall()
 # st.write(tables)
 
 
