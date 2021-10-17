@@ -2,11 +2,10 @@ import streamlit as st
 
 import yagmail
 import yaml
-import mysql.connector as mysql
-from mysql.connector.constants import ClientFlag
-from sqlalchemy import create_engine
 
 from PIL import Image
+from db_connection import get_database_connection, get_all_members, get_single_member
+# from search_members import get_all_members
 
 
 st.set_page_config(
@@ -26,15 +25,7 @@ with open('credintials.yml', 'r') as f:
 
 # database localhost connection
 # @st.cache()
-def get_database_connection():
-    db = mysql.connect(host = db_credintials['host'],
-                      user = db_credintials['user'],
-                      passwd = db_credintials['passwd'],
-                      database = db_credintials['database'],
-                      auth_plugin= db_credintials['auth_plugin'])
-    cursor = db.cursor()
 
-    return cursor, db
 
 # def get_database_connection():
 #     db = mysql.connect(host = "remotemysql.com",
@@ -48,9 +39,15 @@ def get_database_connection():
 
 cursor, db = get_database_connection()
 
+all_members = get_all_members(db, cursor)
+
 cursor.execute("SHOW DATABASES")
 
 databases = cursor.fetchall() ## it returns a list of all databases present
+
+TEAMS = ['Management', 'HR', 'Expansion', 'Web Development', 'Technology', 'Accounts', 'Listing Sites', 'Marketing',
+         'Email Marketing', 'PPC', 'Video Marketing', 'R&D', 'Reed', 'CS', 'Design', 'Web Publishing',
+         'Digital Design', 'Product', 'External Affairs', 'IT Support', 'Brand Protection', 'Web Sales']
 
 # st.write(databases)
 
@@ -130,9 +127,11 @@ def as_words(n):
 def salary_disbursement():
     if 'flag' not in st.session_state:
         st.session_state.flag = 0
+
     with st.form(key='salary_submit_form', clear_on_submit=False):
         disburse_date = st.date_input('Salary Disbursement Date')
         working_days = st.text_input('Working Days')
+        
         cursor.execute("Select id, name, gross_salary, email from members")
         members = cursor.fetchall()
         name_salary = dict()
@@ -149,11 +148,14 @@ def salary_disbursement():
         for p in parameters:
             param_calculation[p[0]] = p[1]
 
-        cursor.execute('''SHOW columns FROM monthlydisbursement''')
+        cursor.execute('''SHOW columns from monthlydisbursement''')
+        # monthly_dis_parameters = []
+        # for i in cursor.fetchall():
+        #     monthly_dis_parameters.append(i[0])
         monthly_dis_parameters = [i[0] for i in cursor.fetchall()]
         monthly_dis_parameters = monthly_dis_parameters[7:]
-        monthly_dis_parameters.remove('working_days')
-        monthly_dis_parameters.remove('total')
+        # monthly_dis_parameters.remove('working_days')
+        # monthly_dis_parameters.remove('total')
         # monthly_dis_parameters.remove('bonus_description')
         # monthly_dis_parameters.remove('remarks')
         # monthly_dis_parameters.remove('disburse_by')
@@ -177,7 +179,7 @@ def salary_disbursement():
         final_parameter_calculation['medical_allowance'] = medical_allowance
         final_parameter_calculation['gross_salary'] = gross_salary
 
-        cols1, cols2, cols3 = st.beta_columns(3)
+        cols1, cols2, cols3 = st.columns(3)
         total = gross_salary
 
         for k, md in enumerate(monthly_dis_parameters):
@@ -188,22 +190,24 @@ def salary_disbursement():
                 t = cols2.text_input(f'{md}', key=f'{md}')
             else:
                 t = cols3.text_input(f'{md}', key=f'{md}')
+            
             if t and t != '0':
                 if md in ['bonus_description', 'remarks', 'disburse_by']:
                     if t:
                         final_parameter_calculation[md] = t
                     else:
                         final_parameter_calculation[md] = 'N/A'
+
                 elif param_calculation[md] == '%':
-                    val = gross_salary * (int(t)/100)
-                    final_parameter_calculation[md] = val
-                    total += val
+                    attribute_salary_val = gross_salary * (int(t)/100)
+                    final_parameter_calculation[md] = attribute_salary_val
+                    total += attribute_salary_val
                     # st.write(total)
                 elif param_calculation[md] == '৳':
                     if md == 'casual_leave' and working_days:
                         deduct = (gross_salary/int(working_days)) * int(t)
-                        final_parameter_calculation[md] = deduct * -1
-                        total += (deduct*-1)
+                        final_parameter_calculation[md] = -deduct 
+                        total += (-deduct)
                         # st.write(total)
 
                     elif md != 'casual_leave':
@@ -244,11 +248,16 @@ def salary_disbursement():
                 values = []
                 # st.write(final_parameter_calculation)
 
+                del final_parameter_calculation['gross_salary']
+                # del final_parameter_calculation['total']
+
                 for f, v in final_parameter_calculation.items():
-                    if f != 'gross_salary':
-                        attrib_s = attrib_s + f + ','
+                    if f != 'total':
+                        attrib_s += f + ','
                         value_s = value_s + '%s' + ','
                         values.append(v)
+
+                
 
                 attrib_s = attrib_s[:-1]
                 value_s = value_s[:-1]
@@ -263,7 +272,7 @@ def salary_disbursement():
                 # st.write(values)
 
                 cursor.execute(query, values)
-                connection.commit()
+                db.commit()
                 try:
                     st.success(f'''Hi *{final_parameter_calculation['disburse_by']}*,  
                                 Salary disbursement info is recorded to the DB successfully for **{member}**''')
@@ -271,129 +280,139 @@ def salary_disbursement():
                     st.success(f'''Hi,  
                                 Salary disbursement info is recorded to the DB successfully for **{member}**''')
 
-                del final_parameter_calculation['member_id']
-                del final_parameter_calculation['disburse_date']
-
-                basic = final_parameter_calculation['basic']
-                del final_parameter_calculation['basic']
-                print_string = '<b>Basic</b>' + \
-                    ' = ' + str(int(basic, 2)) + '\n'
-                st.write(f'**Basic: ** {str(int(basic, 2))}')
-
-                home_rent_allowance = final_parameter_calculation['home_rent_allowance']
-                del final_parameter_calculation['home_rent_allowance']
-                print_string += '<b>Home Rent Allowance</b>' + \
-                    ' = ' + str(int(home_rent_allowance, 2)) + '\n'
-                st.write(
-                    f'**Home Rent Allowance: ** {str(int(home_rent_allowance, 2))}')
-
-                conveyance_allowance = final_parameter_calculation[
-                    'conveyance_allowance']
-                del final_parameter_calculation['conveyance_allowance']
-                print_string += '<b>Conveyance Allowance</b>' + \
-                    ' = ' + str(int(conveyance_allowance, 2)) + '\n'
-                st.write(
-                    f'**Conveyance Allowance: ** {str(int(conveyance_allowance, 2))}')
-
-                medical_allowance = final_parameter_calculation[
-                    'medical_allowance']
-                del final_parameter_calculation['medical_allowance']
-                print_string += '<b>Medical Allowance</b>' + \
-                    ' = ' + str(int(medical_allowance, 2)) + '\n'
-                st.write(
-                    f'**Medical Allowance: ** {str(int(medical_allowance, 2))}')
-
-                print_string += '<b>-------------------------------------------<b>' + '\n'
-                st.write(f'-------------------------------')
-
-                gross_salary = final_parameter_calculation['gross_salary']
-                del final_parameter_calculation['gross_salary']
-                print_string += '<b>Gross Salary' + ' = ' + \
-                    str(int(gross_salary, 2)) + '\n'
-                st.write(f'**Gross Salary: ** {str(int(gross_salary, 2))}')
-
-                try:
-                    bonus_description = final_parameter_calculation['bonus_description']
-                    del final_parameter_calculation['bonus_description']
-                except:
-                    bonus_description = ''
-
-                try:
-                    disburse_by = final_parameter_calculation['disburse_by']
-                    del final_parameter_calculation['disburse_by']
-                except:
-                    disburse_by = ''
                 
-                try:
-                    remarks = final_parameter_calculation['remarks']
-                    del final_parameter_calculation['remarks']
-                except:
-                    remarks = ''
+                # Sending Payslip to the employee Email 
+                # del final_parameter_calculation['member_id']
+                # del final_parameter_calculation['disburse_date']
 
-                for k, v in final_parameter_calculation.items():
-                    k_mail = '<b>'
-                    k_sl = ''
-                    for _ in k.split('_'):
+                # basic = final_parameter_calculation['basic']
+                # del final_parameter_calculation['basic']
+                # print_string = '<b>Basic</b>' + \
+                #     ' = ' + str(round(basic, 2)) + '\n'
+                # st.write(f'**Basic: ** {str(round(basic, 2))}')
 
-                        k_mail += _.capitalize() + ' '
-                        k_sl += _.capitalize() + ' '
-                    k_mail += '</b>'
+                # home_rent_allowance = final_parameter_calculation['home_rent_allowance']
+                # del final_parameter_calculation['home_rent_allowance']
+                # print_string += '<b>Home Rent Allowance</b>' + \
+                # del final_parameter_calculation['gross_salary']
+                #     ' = ' + str(round(home_rent_allowance, 2)) + '\n'
+                # st.write(
+                # del final_parameter_calculation['gross_salary']
+                #     f'**Home Rent Allowance: ** {str(round(home_rent_allowance, 2))}')
 
-                    try:
-                        print_string = print_string + k_mail + \
-                            ' = ' + str(int(v, 2)) + '\n'
-                        st.write(f'**{k_sl}: ** {str(int(v, 2))}')
-                    except:
-                        print_string = print_string + k_mail + ' = ' + v + '\n'
-                        st.write(f'**{k_sl}: ** {v}')
+                # conveyance_allowance = final_parameter_calculation[
+                #     'conveyance_allowance']
+                # del final_parameter_calculation['conveyance_allowance']
+                # print_string += '<b>Conveyance Allowance</b>' + \
+                # del final_parameter_calculation['gross_salary']
+                #     ' = ' + str(round(conveyance_allowance, 2)) + '\n'
+                # st.write(
+                # del final_parameter_calculation['gross_salary']
+                #     f'**Conveyance Allowance: ** {str(round(conveyance_allowance, 2))}')
 
-                print_string += '<b>-------------------------------------------<b>' + '\n'
-                st.write(f'-------------------------------')
-                print_string += '<b>Total Remunaration</b>' + \
-                    ' = ' + str(int(total, 2)) + '\n'
-                st.write(f'**Total Remunaration: ** {str(int(total, 2))}')
+                # medical_allowance = final_parameter_calculation[
+                #     'medical_allowance']
+                # del final_parameter_calculation['medical_allowance']
+                # print_string += '<b>Medical Allowance</b>' + \
+                # del final_parameter_calculation['gross_salary']
+                #     ' = ' + str(round(medical_allowance, 2)) + '\n'
+                # st.write(
+                # del final_parameter_calculation['gross_salary']
+                #     f'**Medical Allowance: ** {str(round(medical_allowance, 2))}')
 
-                if bonus_description != '':
-                    print_string += '<b>Bonus Description</b>' + ' = ' + bonus_description + '\n'
-                    st.write(f'**Bonus Description: ** {bonus_description}')
+                # print_string += '<b>-------------------------------------------<b>' + '\n'
+                # st.write(f'-------------------------------')
 
-                if remarks != '':
-                    print_string += '<b>Remarks</b>' + ' = ' + remarks + '\n'
-                    st.write(f'**Remarks: ** {remarks}')
+                # gross_salary = final_parameter_calculation['gross_salary']
+                # del final_parameter_calculation['gross_salary']
+                # print_string += '<b>Gross Salary' + ' = ' + \
+                # del final_parameter_calculation['gross_salary']
+                #     str(round(gross_salary, 2)) + '\n'
+                # del final_parameter_calculation['gross_salary']
+                # st.write(f'**Gross Salary: ** {str(round(gross_salary, 2))}')
 
-                if disburse_by != '':
-                    print_string += '<b>Disburse By</b>' + ' = ' + disburse_by + '\n'
-                    st.write(f'**Disburse By: ** {disburse_by}')
+                # try:
+                #     bonus_description = final_parameter_calculation['bonus_description']
+                #     del final_parameter_calculation['bonus_description']
+                # except:
+                #     bonus_description = ''
 
-                print_string += '\n\n<b>Regards</b>' + '\n' + \
-                    '<br>Company Name</br>' + '\n' + \
-                    'Company Address, Road - X, Block - X, ABC R/A'
+                # try:
+                #     disburse_by = final_parameter_calculation['disburse_by']
+                #     del final_parameter_calculation['disburse_by']
+                # except:
+                #     disburse_by = ''
+                
+                # try:
+                #     remarks = final_parameter_calculation['remarks']
+                #     del final_parameter_calculation['remarks']
+                # except:
+                #     remarks = ''
 
-                # st.write(print_string)
-                receiver = name_email[member]
-                body = f'''<h3>Dear {member}</h3>
-                            Assalamualikum Warahmatullah. Hope your are doing well. 
-                            <h4>Here is your payslip for {disburse_date}</h4>
-                            {print_string}'''
-                # st.write(body)
+                # for k, v in final_parameter_calculation.items():
+                #     k_mail = '<b>'
+                #     k_sl = ''
+                #     for _ in k.split('_'):
+
+                #         k_mail += _.capitalize() + ' '
+                #         k_sl += _.capitalize() + ' '
+                #     k_mail += '</b>'
+
+                #     try:
+                #         print_string = print_string + k_mail + \
+                #             ' = ' + str(round(v, 2)) + '\n'
+                #         st.write(f'**{k_sl}: ** {str(round(v, 2))}')
+                #     except:
+                #         print_string = print_string + k_mail + ' = ' + v + '\n'
+                #         st.write(f'**{k_sl}: ** {v}')
+
+                # print_string += '<b>-------------------------------------------<b>' + '\n'
+                # st.write(f'-------------------------------')
+                # print_string += '<b>Total Remunaration</b>' + \
+                #     ' = ' + str(round(total, 2)) + '\n'
+                # st.write(f'**Total Remunaration: ** {str(round(total, 2))}')
+
+                # if bonus_description != '':
+                #     print_string += '<b>Bonus Description</b>' + ' = ' + bonus_description + '\n'
+                #     st.write(f'**Bonus Description: ** {bonus_description}')
+
+                # if remarks != '':
+                #     print_string += '<b>Remarks</b>' + ' = ' + remarks + '\n'
+                #     st.write(f'**Remarks: ** {remarks}')
+
+                # if disburse_by != '':
+                #     print_string += '<b>Disburse By</b>' + ' = ' + disburse_by + '\n'
+                #     st.write(f'**Disburse By: ** {disburse_by}')
+
+                # print_string += '\n\n<b>Regards</b>' + '\n' + \
+                #     '<br>Company Name</br>' + '\n' + \
+                #     'Company Address, Road - X, Block - X, ABC R/A'
+
+                # # st.write(print_string)
+                # receiver = name_email[member]
+                # body = f'''<h3>Dear {member}</h3>
+                #             Assalamualikum Warahmatullah. Hope your are doing well. 
+                #             <h4>Here is your payslip for {disburse_date}</h4>
+                #             {print_string}'''
+                # # st.write(body)
 
 
-                try:
-                    email_id = email_sender['email']
-                    email_pass = email_sender['pass']
-                    yag = yagmail.SMTP(email_id, email_pass)
-                    yag.send(
-                        to=receiver,
-                        subject=f"Payslip: {disburse_date}",
-                        contents=body
-                    )
-                    st.success("Email payslip sent successfully")
-                    st.balloons()
-                    st.session_state.flag = 0
-                except Exception as e:
-                    st.write(e)
-                    st.error("Error, email was not sent")
-                del final_parameter_calculation
+                # try:
+                #     email_id = email_sender['email']
+                #     email_pass = email_sender['pass']
+                #     yag = yagmail.SMTP(email_id, email_pass)
+                #     yag.send(
+                #         to=receiver,
+                #         subject=f"Payslip: {disburse_date}",
+                #         contents=body
+                #     )
+                #     st.success("Email payslip sent successfully")
+                #     st.balloons()
+                #     st.session_state.flag = 0
+                # except Exception as e:
+                #     st.write(e)
+                #     st.error("Error, email was not sent")
+                # del final_parameter_calculation
 
             else:
                 st.write("Click above button If you are Sure")
@@ -404,37 +423,65 @@ def salary_disbursement():
 def member_register():
     with st.form(key='member_form'):
         name = st.text_input('Full Name')
-        nickname = st.text_input('Nickname')
+        # nickname = st.text_input('Nickname')
         email = st.text_input('Email')
         dept = st.selectbox('Team Name', TEAMS)
         status = st.selectbox('Status', ('Probationary', 'Permanent'))
         joining_date = st.date_input('Joining Date')
         account_number = st.text_input('Account Number')
         gross_salary = st.text_input('Gross Salary')
+        
         if st.form_submit_button('Submit'):
-            query = '''INSERT INTO members (name, nickname, email, dept, status, 
+            member_query = '''INSERT INTO members (name, email, dept, status, 
                                             joining_date, account_number, gross_salary) 
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)'''
-            values = (name, nickname, email, dept, status,
-                      joining_date, account_number, gross_salary)
-            cursor.execute(query, values)
-            connection.commit()
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s)'''
+            member_values = (name, email, dept, status, joining_date, account_number, gross_salary)
+            cursor.execute(member_query, member_values)
+            db.commit()
             st.success(f'{name} info inserted successfully')
-            # cursor.execute("Select * from members")
-            # members = cursor.fetchall()
-            # st.write(members)
+            
+    
+    member_select_option = st.selectbox('Search Member', ('----------','All Member List', 'Search a single member?'))
+    
+    if member_select_option == 'Search a single member?':
+        search_member = st.text_input('Enter the employee full name')
+        
+        cursor.execute("Select name, status, gross_salary from members")
+        members = cursor.fetchall()
+
+        member_found_flag = False
+        
+        for m in members:
+            if search_member == m[0]:
+                st.success('Hurrah! the employee is already registered')
+                st.write(m)
+                member_found_flag = True
+                break
+
+        if member_found_flag == False:
+            st.warning('Sorry, not available.')
+
+        # st.write(members)
+
+    elif member_select_option == 'All Member List':
+        cursor.execute('SELECT name, email, status, gross_salary from members')
+        all_members = cursor.fetchall()
+
+        st.write(all_members)
+
 
 
 def parameter_listing():
     with st.form(key='parameter_listing_form'):
         name = st.text_input('Sarlary parameter Name')
         calculation_type = st.selectbox("What's the calculation type", ("%৳"))
-        sort_name = '_'.join(name.split())
+        # sort_name = '_'.join(name.split())
+
         if st.form_submit_button('Submit'):
             query = "INSERT INTO parameter (name, calculation_type) VALUES (%s, %s)"
             values = (name, calculation_type)
             cursor.execute(query, values)
-            connection.commit()
+            db.commit()
             st.success(f'*{name}* parameter inserted successfully')
 
             # add new column to monthlydisbursement table
@@ -451,12 +498,14 @@ def parameter_listing():
 
         cursor.execute('''Select name, calculation_type  from parameter''')
         parameters = cursor.fetchall()
-        df = pd.DataFrame(parameters, columns=[
-                          'parameter', 'Calculation Type'])
-        st.table(df)
+        # df = pd.DataFrame(parameters, columns=[
+        #                   'parameter', 'Calculation Type'])
+        # st.table(df)
+
+        st.write(parameters)
 
 
-def driver(user_type):
+def driver():
         st.sidebar.header('Select your requirement')
         task = st.sidebar.selectbox('',
                                     ('-----------------------------',
@@ -477,17 +526,15 @@ def main():
     cols2.write('A real-life project of CSE-3532 course work')
 
 
-    username = st.sidebar.text_input(
-        'Username', 'Enter Your E-mail', key='user')
+    username = st.sidebar.text_input('Username', 'Enter Your E-mail', key='user')
 
-    password = st.sidebar.text_input(
-        "Enter a password", type="password", key='pass')
+    password = st.sidebar.text_input("Enter a password", type="password", key='pass')
 
 
     st.session_state.login = st.sidebar.checkbox('Log In')
     
     if st.session_state.login:
-        if username.split('@')[-1] =="gmail.com" and password == system_pass:
+        if username.split('@')[-1] == "gmail.com" and password == system_pass:
             driver()
         
         else:
