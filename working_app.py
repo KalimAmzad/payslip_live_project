@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 
-with open('email_credintials.yml', 'r') as f:
+with open('credintials.yml', 'r') as f:
     credintials = yaml.load(f)
     db_credintials = credintials['db']
     system_pass = credintials['system_pass']['admin']
