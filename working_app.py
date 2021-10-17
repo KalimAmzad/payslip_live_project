@@ -137,6 +137,7 @@ def salary_disbursement():
         name_salary = dict()
         name_id = dict()
         name_email = dict()
+        
         for m in members:
             name_salary[m[1]] = m[2]
             name_id[m[1]] = m[0]
