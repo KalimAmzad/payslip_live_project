@@ -83,7 +83,7 @@ TEAMS = ['Management', 'HR', 'Expansion', 'Web Development', 'Technology', 'Acco
 #                                               csr_sale_bonus int,
 #                                               FOREIGN KEY(member_id) REFERENCES members(id))''')
 
-# cursor.execute("show tables from PayslipDB")
+# cursor.execute("show tables from 8cXi2WevvB")
 # tables = cursor.fetchall()
 # st.write(tables)
 
