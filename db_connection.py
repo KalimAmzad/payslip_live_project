@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 
 
 with open('credintials.yml', 'r') as f:
-    credintials = yaml.load(f)
+    credintials = yaml.load(f, Loader=yaml.FullLoader)
     db_credintials = credintials['db']
     system_pass = credintials['system_pass']['admin']
     email_sender = credintials['email_sender']
@@ -21,11 +21,3 @@ def get_database_connection():
 
     return cursor, db
 
-
-
-
-def get_all_members(db, cursor):
-	pass
-
-def get_single_member(db, cursor):
-	pass

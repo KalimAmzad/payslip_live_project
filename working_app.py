@@ -4,7 +4,7 @@ import yagmail
 import yaml
 
 from PIL import Image
-from db_connection import get_database_connection, get_all_members, get_single_member
+from db_connection import get_database_connection
 # from search_members import get_all_members
 
 
@@ -17,7 +17,7 @@ st.set_page_config(
 
 
 with open('credintials.yml', 'r') as f:
-    credintials = yaml.safe_load(f)
+    credintials = yaml.safe_load(f, Loader=yaml.FullLoader)
     db_credintials = credintials['db']
     system_pass = credintials['system_pass']['admin']
     email_sender = credintials['email_sender']
@@ -137,7 +137,7 @@ def salary_disbursement():
         name_salary = dict()
         name_id = dict()
         name_email = dict()
-        
+
         for m in members:
             name_salary[m[1]] = m[2]
             name_id[m[1]] = m[0]
