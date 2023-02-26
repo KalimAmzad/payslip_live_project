@@ -8,7 +8,6 @@ from PIL import Image
 from db_connection import get_database_connection
 import pandas as pd
 import base64
-# from search_members import get_all_members
 import io
 
 st.set_page_config(
@@ -207,36 +206,25 @@ def payment():
 
         # cursor.execute(f'''DELETE FROM transaction WHERE id=3''')
         # cursor.fetchall()
-        cursor.execute(f'''SELECT * FROM transaction''')
-        data = cursor.fetchall()
-        df = pd.DataFrame(data, columns=['id',
-                                        'bill_date',
-                                        'check_issue_date',
-                                        'amount',
-                                        'total',
-                                        'payto_id',
-                                        'payfor_id',
-                                        'bank_id',
-                                        'concern_id',
-                                        'created_at',
-                                        'updated_at',
-                                        'documents',
-                                        'check_no',
-                                        'notes'])
-        df = df.drop('id', axis=1)
+        df = pd.read_sql('''SELECT t.*, pf.name AS payfor, pt.name AS payto, b.name AS bank, c.name AS concern
+                                FROM transaction t
+                                LEFT JOIN payfor pf ON t.payfor_id = pf.id
+                                LEFT JOIN payto pt ON t.payto_id = pt.id
+                                LEFT JOIN bank b ON t.bank_id = b.id
+                                LEFT JOIN concern c ON t.concern_id = c.id
+                                ''', con=db)
+        
         # st.dataframe(df)
-        documents_urls = df['documents'][6]
-        documents_urls = documents_urls.strip('[]').split(', ')
 
         # select the columns you want the users to see
         gb = GridOptionsBuilder.from_dataframe(df[['bill_date',
                                                 'check_issue_date',
                                                 'amount',
                                                 'total',
-                                                'payto_id',
-                                                'payfor_id',
-                                                'bank_id',
-                                                'concern_id',
+                                                'payto',
+                                                'payfor',
+                                                'bank',
+                                                'concern',
                                                 'check_no',
                                                 'notes']])
         # configure selection
