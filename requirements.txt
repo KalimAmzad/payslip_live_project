@@ -6,3 +6,4 @@ streamlit==1.18.0
 plotly==4.14.3
 yagmail==0.14.256
 PyYAML==6.0
+streamlit-aggrid==0.3.3
