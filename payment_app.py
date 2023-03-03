@@ -333,10 +333,10 @@ def driver():
 
 def main():
     cols1, cols2, cols3 = st.columns((1, 4, 1))
-    # cols2.title('Payment Management System')
-    cols2.title('Payslip Management System')
-    # cols2.write('A dynamic system for Al Razi Chemicals Ltd.')
-    cols2.write('A dynamic system')
+    cols2.title('Payment Management System')
+    # cols2.title('Payslip Management System')
+    cols2.write('A dynamic system for Al Razi Chemicals Ltd.')
+    # cols2.write('A dynamic system')
 
 
     username = st.sidebar.text_input('Username', 'Enter Your E-mail', key='user')
