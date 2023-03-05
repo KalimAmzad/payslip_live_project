@@ -36,43 +36,6 @@ TEAMS = ['Management', 'HR', 'Expansion', 'Web Development', 'Technology', 'Acco
          'Email Marketing', 'PPC', 'Video Marketing', 'R&D', 'Reed', 'CS', 'Design', 'Web Publishing',
          'Digital Design', 'Product', 'External Affairs', 'IT Support', 'Brand Protection', 'Web Sales']
 
-# st.write(databases)
-
-# cursor.execute('''DROP TABLE payto IF EXISTS payto''')
-# cursor.execute('''DROP TABLE payfor IF EXISTS payfor''')
-# cursor.execute('''DROP TABLE bank IF EXISTS bank''')
-# cursor.execute('''DROP TABLE transaction IF EXISTS transaction''')
-# cursor.execute('''DROP TABLE concern IF EXISTS concern''')
-
-# cursor.execute('''CREATE TABLE payto (id int AUTO_increment PRIMARY KEY,
-#                                       name varchar(255))''')
-
-# cursor.execute('''CREATE TABLE payfor (id int AUTO_increment PRIMARY KEY,
-#                                         name varchar(255))''')
-
-# cursor.execute('''CREATE TABLE bank (id int AUTO_increment PRIMARY KEY,
-#                                         name varchar(255))''')
-
-# cursor.execute('''CREATE TABLE concern (id int AUTO_increment PRIMARY KEY,
-#                                         name varchar(255))''')
-
-# cursor.execute('''CREATE TABLE transaction (id int AUTO_increment PRIMARY KEY,
-#                                               bill_date date,
-#                                               check_issue_date date,
-#                                               amount float,
-#                                               total float,
-#                                               payto_id int,
-#                                               payfor_id int,
-#                                               bank_id int,
-#                                               concern_id int,
-#                                               FOREIGN KEY(payto_id) REFERENCES payto(id),
-#                                               FOREIGN KEY(payfor_id) REFERENCES payfor(id),
-#                                               FOREIGN KEY(bank_id) REFERENCES bank(id),
-#                                               FOREIGN KEY(concern_id) REFERENCES concern(id))''')
-
-# cursor.execute("show tables from payment")
-# tables = cursor.fetchall()
-# st.write(tables)
 
 
 def as_words(n):
@@ -182,7 +145,12 @@ def payment():
                         file_name = file.name
                         # st.write(file_name)
                         file_extension = os.path.splitext(file_name)[1]
-                        file_url = "./documents/" + file_name
+                        dir_name = "./documents/payment"
+                        if not os.path.isdir(dir_name):
+                            os.makedirs(dir_name)
+
+                        file_url = dir_name + '/' + file_name
+                        # file_url = dir_name + file_name
                         all_documents.append(file_url)
 
                         # Save the file in its original format
@@ -196,6 +164,15 @@ def payment():
                 # st.write(query, values)
                 cursor.execute(query, values)
                 db.commit()
+                st.success("Journal Inserted Successfully!")
+                st.balloons()
+
+                sql = "UPDATE bank SET balance = balance - %s WHERE id = %s"
+                val = (amount, bank_id)
+                cursor.execute(sql, val)
+                # st.write(sql, val)
+                db.commit()
+                st.success('Bank Balance Updated Successfully!')
 
             else:
                 st.write("Click above button If you are Sure")
@@ -279,6 +256,155 @@ def payment():
             #     st.markdown(f":orange[{selected_rows[0]['city']}]")
 
 
+def income():    
+    if 'flag' not in st.session_state:
+        st.session_state.flag = 0
+
+    with st.form(key='income_submit_form', clear_on_submit=False):
+
+        cursor.execute(f"Select id, name from bank")
+        bank_names = cursor.fetchall()
+        bank_id_name = {bank[1]:bank[0] for bank in bank_names}
+
+        date = st.date_input('Date')
+        bank = st.selectbox('Bank', list(bank_id_name.keys()))
+        amount = st.text_input('Amount')
+        notes = st.text_area('Remarks')
+        document_upload = st.file_uploader('Upload Document', type=['txt','pdf', 'jpg', 'png', 'jpeg'], accept_multiple_files=True)
+        if st.form_submit_button(label='Submit'):
+            if not(bank and amount and date):
+                st.write('Please fill all the fields')
+            else:
+                st.session_state.flag = 1
+                # st.success('Data Submitted Successfully')
+
+
+    # st.write(st.session_state.flag)
+    if st.session_state.flag:
+        # st.write(final_parameter_calculation)
+
+        with st.form(key='income_final', clear_on_submit=True):
+             # st.write(final_parameter_calculation)
+
+            if st.form_submit_button('Are you Sure to Insert?'):
+                # st.write(final_parameter_calculation)
+                st.session_state.flag = 0
+                
+                # insert data into income table
+                
+                all_documents = []
+                for file in document_upload:
+                    st.write(file.name)
+                    # st.write(file.getvalue())
+                    # st.write(file.read())
+                    if file is not None:
+                        # Get the file name and extract the extension
+                        file_name = file.name
+                        # st.write(file_name)
+                        file_extension = os.path.splitext(file_name)[1]
+
+                        # if documnets/income dir not exist create
+                        dir_name = "./documents/income"
+                        if not os.path.isdir(dir_name):
+                            os.makedirs(dir_name)
+
+                        file_url = dir_name + '/' + file_name
+                        all_documents.append(file_url)
+
+                        # Save the file in its original format
+                        with open(file_url, "wb") as f:
+                            f.write(file.read())
+                        st.success("File has been successfully saved to the directory.")
+
+
+                query = "Insert into income (date, amount, bank_id, notes, documents) VALUES (%s, %s, %s, %s, %s)"
+                values = (date, amount, bank_id_name[bank], notes, str(all_documents))
+                st.write(query, values)
+                cursor.execute(query, values)
+                db.commit()
+                st.success("Income Data Inserted Successfully!")
+                st.balloons()
+
+                sql = "UPDATE bank SET balance = balance + %s WHERE id = %s"
+                val = (amount, bank_id_name[bank])
+                cursor.execute(sql, val)
+                st.write(sql, val)
+                db.commit()
+                st.success('Bank Balance Updated Successfully!')
+
+
+
+            else:
+                st.write("Click above button If you are Sure")
+    else:
+        st.warning("Please fill up above form")
+
+    if st.checkbox(f"Show all income data"):
+
+        # cursor.execute(f'''DELETE FROM transaction WHERE id=3''')
+        # cursor.fetchall()
+        df = pd.read_sql('''SELECT i.*, b.name AS bank
+                                FROM income i
+                                LEFT JOIN bank b ON i.bank_id = b.id
+                                ''', con=db)
+        
+        # st.dataframe(df)
+
+        # select the columns you want the users to see
+        gb = GridOptionsBuilder.from_dataframe(df[['DATE',
+                                                'bank',
+                                                'amount',
+                                                'notes']])
+        # configure selection
+        gb.configure_selection(selection_mode="single", use_checkbox=False)
+        gb.configure_side_bar()
+        gridOptions = gb.build()
+
+        data = AgGrid(df,
+                    gridOptions=gridOptions,
+                    enable_enterprise_modules=True,
+                    allow_unsafe_jscode=True,
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    columns_auto_size_mode=ColumnsAutoSizeMode.FIT_CONTENTS)
+
+        selected_rows = data["selected_rows"]
+
+        if len(selected_rows) != 0:
+            # col1, col2, col3, col4 = st.columns(4)
+            documents_urls = selected_rows[0]['documents']
+            # st.write(documents_urls)
+            documents_urls = documents_urls.strip('[]').split(', ')
+            doc_text = False
+            for document in documents_urls:
+                # file_path += document
+                if document:
+                    if not doc_text:
+                        st.title("Referenced Documents")
+                        doc_text = True
+                    file_extension = os.path.splitext(document)[1].replace("'", '')
+                    if file_extension in [".png", ".jpg", ".jpeg"]:
+                        # Display the image file
+                        url=os.path.join(os.getcwd(), document.strip("'.//"))
+                        st.image(url, width=None)
+                    elif file_extension == ".pdf":
+                        # Display a link to the pdf file
+                        url=os.path.join(os.getcwd(), document.strip("'.//"))
+                        show_pdf(url)
+                        # st.markdown("[Open the PDF file]({})".format(url))
+                    else:
+                        # Display the contents of the text file
+                        url=os.path.join(os.getcwd(), document.strip("'.//"))
+                        with open(url, "r") as f:
+                            st.text(f.read())
+                else:
+                    st.error("File does not exist.")
+
+            # with col1:
+            #     st.markdown("##### Name")
+            #     st.markdown(f":orange[{selected_rows[0]['name']}]")
+            # with col2:
+            #     st.markdown("##### City")
+            #     st.markdown(f":orange[{selected_rows[0]['city']}]")
 
 
 
@@ -312,15 +438,23 @@ def parameter_listing():
                 col.dataframe(df)
                 # col.write(parameters)
 
+
 def reporting():
-    pass
+    dashboard = '<iframe scrolling="no" frameborder="0" style="overflow:hidden;width:100%" width="100%" height="600" src="https://lookerstudio.google.com/embed/reporting/a165fffa-d631-4493-be2e-7a7843af169b/page/p_ea0r4sov3c" frameborder="0" style="border:0" allowfullscreen></iframe>'
+    st.markdown(dashboard, unsafe_allow_html=True)
+
+
+def bank_balance():
+    df = pd.read_sql('''SELECT * FROM bank''', con=db)
+    st.dataframe(df)
 
 def driver():
         st.sidebar.header('Select your requirement')
         task = st.sidebar.selectbox('',
-                                    ('-----------------------------',
-                                     'Payment', 
+                                    ('Payment', 
+                                     'Income',
                                      'Parameter Insertion', 
+                                     'Bank Balance',
                                      'Reporting'))
 
         if task == 'Payment':
@@ -329,6 +463,10 @@ def driver():
             reporting()
         elif task == 'Parameter Insertion':
             parameter_listing()
+        elif task == 'Income':
+            income()
+        elif task == "Bank Balance":
+            bank_balance()
 
 
 def main():
